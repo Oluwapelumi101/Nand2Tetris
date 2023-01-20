@@ -1,0 +1,10 @@
+CHIP test {
+    IN a, b, c;
+    OUT out;
+
+    PARTS:
+    Xor(a=a, b=b, out=temp1);
+    Xor(a=b, b=c, out=temp2);
+    Or(a=temp1, b=temp2, out=outOr);
+    Not(in=outOr, out=out); 
+}
