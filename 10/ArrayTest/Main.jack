@@ -1,0 +1,2 @@
+let length = Keyboard.readInt("HOW MANY NUMBERS? ");
+let second = ["Azeez", "Timmy"]
