@@ -420,16 +420,23 @@ class CompilationEngine():
         """ Compiling let statement """
         # Pushing let tag 
         self.output.append("<letStatement>")
-        # print(self.current_token_str)
         self.output.append(self.current_token_str)  #let keyword
         self.Advance()
+
+        # Let identifier
         if self.check("varName"):
             # print(self.current_token_str)
             self.output.append(self.current_token_str)
             self.Advance()
-        # handling expression 0 or one times
-        if not self.check("="):
-            self.compileExpression()
+
+        # Handling let statements with arrays
+        if self.check("["):
+            self.output.append(self.current_token_str) # pushing "["
+            self.Advance()
+            self.compileExpression() #expression in the array
+            self.output.append(self.current_token_str) # cöosing the array
+            self.Advance()
+
         if self.check("="):
             # print(self.current_token_str)
             self.output.append(self.current_token_str)
@@ -560,24 +567,95 @@ class CompilationEngine():
         """ Compiling an expression statements """
         self.output.append("<expression>")
         self.compileTerm()
+        
+        # print(self.current_token_str)
         while self.check("op"):
             # Handling operation
             self.output.append(self.current_token_str)
             self.Advance()
             self.compileTerm()
-        self.output.append("</expression>")
-        # self.output.append(self.current_token_str)
-        # self.Advance()
 
+        self.output.append("</expression>")
+  
     def compileTerm(self):
         """ Compiling term  """
         # Term tag
         self.output.append("<term>")
+        next = self.next_token()[1]
+        
+
+        # Handling terms statements with terminal constants INT|STR|KEYWORD|VARNAME
+        if self.check("constant") and next[1] not in [".", "["]:
+            # print(self.current_token_str)
+            self.output.append(self.current_token_str)
+            self.Advance()
+        
+        # Handling term in parenthesis
+        if self.check("("):
+            self.output.append(self.current_token_str) # pushing "("
+            self.Advance()
+            
+            self.compileExpression() #expression in the parenthesis
+            self.output.append(self.current_token_str) #closing bracket
+            # print(self.output)
+            self.Advance()
+            
+        previous = self.prev_token()[1]
+        if self.check("unary") and previous[1] == "(":
+            self.output.append(self.current_token_str) # pushing unary operation
+            self.Advance()
+            self.compileTerm()
+            # self.output.append(self.current_token_str) #closing bracket
+            # print(self.current_token_str)
+    
+        # Checking for subroutine syntax
+        if next[1] == ".":
+            # Subroutine call procedure
+            if self.check("varName"): #Checking and Pushing subroutine Name or classname or varname
+                self.output.append(self.current_token_str)
+                # print(self.current_token_str)
+                self.Advance()
+
+            # Checking next is either "(" or "."   /erase() or screen.erase()
+            if self.check("."):
+                self.output.append(self.current_token_str) #pushing "."
+                self.Advance()
+                if self.check("varName"): #Checking and Pushing classname or varname
+                    self.output.append(self.current_token_str)
+                    self.Advance()
+
+            if self.check("("): #Checking if next is parenthesis 
+                self.output.append(self.current_token_str) #pushing "("
+                self.Advance()   
+                # print('####')
+
+            # calling expression
+            self.compileExpressionList()
+            # Closing Bracket
+            if self.check(")"):
+                self.output.append(self.current_token_str) #pushing ")"
+                self.Advance()
+
+        # Checking for terms with array expressions
+        if next[1] == "[":
+            # Array handling procedure
+            if self.check("varName"): #Pushing array name
+                self.output.append(self.current_token_str)
+                # print(self.current_token_str)
+                self.Advance()
+                self.output.append(self.current_token_str) # pushing "["
+                self.Advance()
+                self.compileExpression() #expression in the array
+                self.output.append(self.current_token_str) # cöosing the array
+                self.Advance()
         # Term value
-        self.output.append(self.current_token_str)
+        # self.output.append(self.current_token_str)
+    
         self.output.append("</term>")
-        self.Advance()
-  
+        # self.Advance()
+        # print(self.output)
+        # print(",,,")
+
     def compileExpressionList(self):
         """ Compiling list of expressions statements """
         # Expression list tag
@@ -664,13 +742,27 @@ class CompilationEngine():
             except:
                 return False
 
+        if type == "[":
+            try:
+                if self.current_token_list[0] == "<symbol>" and self.current_token_list[1] == "[":
+                    return True
+            except:
+                return False
+            
         if type == "op":
             try:
-                if self.current_token_list[0] == "<symbol>" and self.current_token_list[1] in ["+", "-", "*", "/", "&", "|", "<", ">", "="]:
+                if self.current_token_list[0] == "<symbol>" and self.current_token_list[1] in ["+", "-", "*", "/", "|", "=", "&lt;", "&gt;", "&amp;",]:
                     return True
             except:
                 return False
 
+        if type == "unary":
+            try:
+                if self.current_token_list[0] == "<symbol>" and self.current_token_list[1] in ["-", "~"]:
+                    return True
+            except:
+                return False
+            
         if type == "classVarDec":
             try:
                 if self.current_token_list[0] == "<keyword>" and self.current_token_list[1] in ["field", "static"]:
@@ -763,6 +855,14 @@ class CompilationEngine():
             except:
                 return False    
 
+        if type == "constant":
+            try:
+                constanta = ["<keyword>", "<stringConstant>", "<integerConstant>", "<identifier>"]
+                if self.current_token_list[0] in constanta:
+                    return True
+            except:
+                return False   
+         
     def getCurrentToken(self):
         """ Setting the value of the current token """
         self.current_token_str = self.All_Tokens[self.count] 
@@ -775,6 +875,20 @@ class CompilationEngine():
             self.count += 1
         self.getCurrentToken()
         return self.count
+
+    def next_token(self):
+        """ Getting the next token to use the term  """
+        next_count = self.count + 1
+        next_token_str = self.All_Tokens[next_count]
+        next_token_list = next_token_str.split(" ")
+        return(next_token_str, next_token_list)
+
+    def prev_token(self):
+        """ Getting the next token to use the term  """
+        next_count = self.count - 1
+        next_token_str = self.All_Tokens[next_count]
+        next_token_list = next_token_str.split(" ")
+        return(next_token_str, next_token_list)
 
     def compile(self):
         """ Driving the compilsion process """
@@ -796,7 +910,6 @@ class CompilationEngine():
         self.compileClass()
         return(self.output)
 
-
 def write_output(list, filename):
     # writing output
     with open(filename, 'w') as f:
@@ -807,7 +920,7 @@ def main(directory):
     """ Loading file and directory and handling call from the command line """
 
     # Handing Directories inputs
-    print('######')
+    # print('######')
     if os.path.isdir(directory):
         files = os.listdir(directory)
 
@@ -818,7 +931,9 @@ def main(directory):
         for filename in files:
             if filename.endswith(".jack"):
                 # Generating output directory and name
-                output_name = os.path.basename(os.path.normpath(filename)) + "M.xml"
+                filename_temp = filename.split(".jack")[0]
+                output_name = os.path.basename(os.path.normpath(filename_temp)) + ".xml"
+                # print(output_name)
                 output_dir = os.path.join(directory, output_name)  
 
                 # Reconstructing file path
@@ -842,7 +957,8 @@ def main(directory):
         jack_code = load(directory)
 
         # Generating output name and directory
-        output_name = filename.split(".vm")[0] + "M.xml"
+        output_name = filename.split(".jack")[0] + ".xml"
+        # print(output_name)
         path = os.path.dirname(os.path.abspath(directory))
         output_dir = os.path.join(path, output_name)  
 
